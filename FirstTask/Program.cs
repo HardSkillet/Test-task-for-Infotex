@@ -7,40 +7,57 @@ using Newtonsoft.Json;
 
 namespace FirstTask
 {
-    public class Program
+    public static class Program
     {
         public static void Main()
         {
             var time = DateTime.Now;
-            var timeID = time.Day.ToString() + time.Month.ToString() + time.Year.ToString() + 
+            var timeID = time.Day.ToString() + time.Month.ToString() + time.Year.ToString() +
                 time.Hour.ToString() + time.Minute.ToString() + time.Millisecond.ToString();
+            
             var configurationsPath = Path.Combine(Environment.CurrentDirectory, "appsetings.json");
             var json = File.ReadAllText(configurationsPath);
             var configurations = JsonConvert.DeserializeObject<Models.Configurations>(json);
             
             var loggerConfiguration = new LoggerConfiguration()
                 .WriteTo.Console()
-                .WriteTo.File(String.Format("log{0}.txt", timeID),
-                    rollingInterval: RollingInterval.Year,
+                .WriteTo.File("log" + timeID + ".txt",
+                    rollingInterval: RollingInterval.Infinite,
                     rollOnFileSizeLimit: true);
             if (configurations.Log == "Debug") loggerConfiguration.MinimumLevel.Debug();
             if (configurations.Log == "Error") loggerConfiguration.MinimumLevel.Error();
             if (configurations.Log == "Information") loggerConfiguration.MinimumLevel.Information();
             Log.Logger = loggerConfiguration.CreateLogger();
+            
+            Log.Debug("Логгирование запущенно");
+            Log.Information("Программа запущенна");
 
             if (configurations.SourcePaths.Length == 0) {
-                Log.Error("Не указано ни исходной папки"); 
+                Log.Error("Не указано ни одной исходной папки"); 
             } else {
-                var temp = time.Day + "." + time.Month + "." + time.Year;
-                configurations.ArchivePath = Path.Combine(configurations.ArchivePath, temp);
+                configurations.ArchivePath = Path.Combine(configurations.ArchivePath, timeID);
                 Directory.CreateDirectory(configurations.ArchivePath);
                 foreach (var path in configurations.SourcePaths) {
-                    Log.Information("Начало копирования файлов из папки: {0}", path);
-                    var isCompleted = CopyToArchieve(path, Path.Combine(configurations.ArchivePath, CutDirectory(path)));
-                    Log.Information("Резервное копирование файлов из папки завершено " + (isCompleted ? "успешно." : "неуспешно."));
+                    var flag = true;
+                    
+                    Log.Information("Начало копирования файлов из папки {0}", path);
+                    
+                    try
+                    {
+                        CopyToArchieve(path, Path.Combine(configurations.ArchivePath, CutDirectory(path)));
+                    }
+                    catch (Exception) {
+                        flag = false;    
+                        throw; 
+                    }
+                    finally
+                    {
+                        Log.Information("Резервное копирование файлов из папки {0} завершено " + (flag ? "успешно" : "неуспешно"), path);
+                    }
                 }
             }
 
+            Log.Information("Программа завершила выполнение");
             Log.CloseAndFlush();
             Console.WriteLine();
         }
@@ -48,7 +65,7 @@ namespace FirstTask
             var tempArrayOfString = path.Split(new Char[] {'\\'});
             return tempArrayOfString[tempArrayOfString.Length - 1];
         }
-        private static bool CopyToArchieve(String sourcePath, String archivePath) {
+        private static void CopyToArchieve(String sourcePath, String archivePath) {
             var files = Directory.EnumerateFiles(sourcePath, "*.*", SearchOption.TopDirectoryOnly);
             ParallelLoopResult result = Parallel.ForEach(files, (current) => {
                 String fileName = current.Substring(sourcePath.Length + 1);
@@ -56,24 +73,16 @@ namespace FirstTask
                 {
                     Directory.CreateDirectory(archivePath);
                     File.Copy(Path.Combine(sourcePath, fileName), Path.Combine(archivePath, fileName), true);
+                    Log.Debug("Файл {0} успешно скопирован", current);
                 }
                 catch (SecurityException) {
-                    //log
+                    Log.Warning(String.Format("Не удалось получить доступ к файлу {0}. Программа продолжит свое выполнение, пропустив его", current));
                 } catch (Exception e) 
                 {
-                    //log
+                    Log.Error(e.Message);
                     throw;
                 }
             });
-            if (result.IsCompleted)
-            {
-                //log
-                return true;
-            }
-            else {
-                //log
-                return false;
-            }
         }
     }
 }
