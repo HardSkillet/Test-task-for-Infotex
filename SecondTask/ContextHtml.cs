@@ -1,6 +1,7 @@
 using System;
 using System.Xml;
 using System.ServiceModel.Syndication;
+using System.Text;
 
 namespace SecondTask {
     public class ContextHtml {
@@ -16,16 +17,18 @@ namespace SecondTask {
             if (Time < DateTime.Now.AddMinutes((int)config.Time) || flag) {
                 XmlTextReader reader = new XmlTextReader(config.Url);
                 SyndicationFeed feed = SyndicationFeed.Load(reader);
-                Html = "<!DOCTYPE html><html><head>";
-                Html += "<title>" + feed.Generator + "</title>";
-                Html += "<meta charset=utf-8 />";
-                Html += "</head> <body>";
-                Html += "<b><a href=\"Home/Set\">Настройки</a></b><br>";
+                var sb = new StringBuilder();
+                sb.Append("<!DOCTYPE html><html><head>");
+                sb.Append("<title>" + feed.Generator + "</title>");
+                sb.Append("<meta charset=utf-8 />");
+                sb.Append("</head> <body>");
+                sb.Append("<b><a href=\"Home/Set\">Настройки</a></b><br>");
                 foreach (SyndicationItem item in feed.Items)
                 {
-                    Html += "<b>" + item.Title.Text + "</b>" + "<br>" + item.PublishDate.DateTime + "<br>" + item.Summary.Text + "<br><br>";
+                    sb.Append("<b>" + item.Title.Text + "</b>" + "<br>" + item.PublishDate.DateTime + "<br>" + item.Summary.Text + "<br><br>");
                 }
-                Html += "</body></html>";
+                sb.Append("</body></html>");
+                Html = sb.ToString();
             }
             return Html;
         }
